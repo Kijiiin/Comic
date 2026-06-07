@@ -2,31 +2,40 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Comic Tracker API</title>
   <style>
-    body { font-family: Arial; background:#111; color:#eee; padding:20px; }
-    input, button { padding:10px; margin:5px; }
+    body { font-family: Arial, sans-serif; background:#111; color:#eee; padding:20px; }
+    input, button { padding:10px; margin:5px; font-size:16px; }
+    button { background:#007bff; color:white; border:none; border-radius:5px; cursor:pointer; }
+    button:hover { background:#0056b3; }
     table { border-collapse: collapse; width:100%; margin-top:20px; }
-    th, td { border:1px solid #444; padding:8px; }
+    th, td { border:1px solid #444; padding:8px; text-align:left; }
     th { background:#222; }
-    .error { color: #ff6b6b; margin-top: 10px; }
-    .loading { color: #ffd93d; }
+    .error { color: #ff6b6b; margin-top: 10px; padding:10px; background:#2a0000; border-radius:5px; }
+    .loading { color: #ffd93d; padding:10px; }
+    .success { color: #4caf50; padding:10px; background:#0a2a0a; border-radius:5px; margin-top:10px; }
+    .info { background:#1a1a2e; padding:15px; border-radius:5px; margin-top:20px; }
+    code { background:#333; padding:2px 5px; border-radius:3px; font-family: monospace; }
   </style>
 </head>
 <body>
 
 <h1>📚 Comic Tracker API</h1>
+<p>Cerca albi a fumetti da Comic Vine</p>
 
-<input id="search" placeholder="es. Batman" />
-<button onclick="searchSeries()">Cerca</button>
+<input id="search" placeholder="es. Batman, Spider-Man, Superman" />
+<button onclick="searchSeries()">🔍 Cerca</button>
 
 <div id="result"></div>
 
 <script>
 
-// IMPORTANTE: Sostituisci con la tua API key valida di Comic Vine
-// Puoi ottenere una chiave gratis su: https://comicvine.gamespot.com/api/
+// LA TUA API KEY
 const API_KEY = "4426d00c9cc60d2ea63bd55c2dd0c614722927c9";
+
+// Proxy CORS gratuito
+const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
 async function searchSeries() {
   const query = document.getElementById("search").value.trim();
@@ -36,16 +45,17 @@ async function searchSeries() {
     return;
   }
 
-  if (API_KEY === "4426d00c9cc60d2ea63bd55c2dd0c614722927c9") {
-    document.getElementById("result").innerHTML = '<div class="error">⚠️ Configura la tua API key di Comic Vine nel codice</div>';
-    return;
-  }
-
   // Mostra loading
-  document.getElementById("result").innerHTML = '<div class="loading">🔄 Caricamento in corso...</div>';
+  document.getElementById("result").innerHTML = '<div class="loading">🔄 Caricamento in corso...<br><small>Cerco: "' + escapeHtml(query) + '"</small></div>';
 
   try {
-    const url = `https://comicvine.gamespot.com/api/issues/?api_key=${API_KEY}&format=json&filter=name:${encodeURIComponent(query)}&limit=20`;
+    // Costruisci l'URL dell'API Comic Vine
+    const comicVineURL = `https://comicvine.gamespot.com/api/issues/?api_key=${API_KEY}&format=json&filter=name:${encodeURIComponent(query)}&limit=20`;
+    
+    // Usa il proxy CORS
+    const url = CORS_PROXY + encodeURIComponent(comicVineURL);
+    
+    console.log("Chiamata API a:", url);
     
     const res = await fetch(url);
     
@@ -54,24 +64,27 @@ async function searchSeries() {
     }
     
     const data = await res.json();
+    
+    console.log("Risposta ricevuta:", data);
 
-    if (data.error === "OK" && data.results && data.results.length > 0) {
+    if (data.results && data.results.length > 0) {
       const results = data.results;
       
-      let html = "<h2>📖 Risultati trovati: " + results.length + "</h2>";
+      let html = `<div class="success">✅ Trovati ${results.length} risultati per "${escapeHtml(query)}"</div>`;
       html += "<table>";
-      html += "<tr><th>Issue</th><th>Data di pubblicazione</th><th>Numero</th></tr>";
+      html += "<tr><th>#</th><th>Titolo dell'Albo</th><th>Numero</th><th>Data Pubblicazione</th></tr>";
       
-      results.forEach(item => {
+      results.forEach((item, index) => {
         const issueNumber = item.issue_number || "N/A";
-        const coverDate = item.cover_date || "Data non disponibile";
+        const coverDate = item.cover_date || "Non disponibile";
         const name = item.name || `Issue #${issueNumber}`;
         
         html += `
           <tr>
-            <td><strong>${name}</strong></td>
-            <td>${coverDate}</td>
-            <td>${issueNumber}</td>
+            <td>${index + 1}</td>
+            <td><strong>${escapeHtml(name)}</strong></td>
+            <td>${escapeHtml(issueNumber)}</td>
+            <td>${escapeHtml(coverDate)}</td>
           </tr>
         `;
       });
@@ -79,20 +92,93 @@ async function searchSeries() {
       html += "</table>";
       document.getElementById("result").innerHTML = html;
     } else {
-      document.getElementById("result").innerHTML = `<div class="error">❌ Nessun risultato trovato per "${query}"</div>`;
+      document.getElementById("result").innerHTML = `<div class="error">❌ Nessun risultato trovato per "${escapeHtml(query)}"<br><br>💡 Prova con: Batman, Spider-Man, Superman, Watchmen, Sandman</div>`;
     }
   } catch (error) {
     console.error("Errore:", error);
-    document.getElementById("result").innerHTML = `<div class="error">❌ Errore: ${error.message}<br><br>⚠️ Potrebbe essere necessario un proxy CORS. Prova ad usare un'estensione CORS o un server proxy.</div>`;
+    document.getElementById("result").innerHTML = `<div class="error">
+      ❌ ERRORE: ${error.message}<br><br>
+      Il problema potrebbe essere il proxy CORS. Sto provando un proxy alternativo...
+    </div>`;
+    
+    // Tentativo con proxy alternativo
+    try {
+      const proxyAlt = "https://cors-anywhere.herokuapp.com/";
+      const comicVineURL = `https://comicvine.gamespot.com/api/issues/?api_key=${API_KEY}&format=json&filter=name:${encodeURIComponent(query)}&limit=20`;
+      const url = proxyAlt + comicVineURL;
+      
+      const res = await fetch(url);
+      const data = await res.json();
+      
+      if (data.results && data.results.length > 0) {
+        const results = data.results;
+        let html = `<div class="success">✅ Trovati ${results.length} risultati (usando proxy alternativo)</div>`;
+        html += "<table>";
+        html += "<tr><th>#</th><th>Titolo dell'Albo</th><th>Numero</th><th>Data</th></tr>";
+        
+        results.forEach((item, index) => {
+          html += `
+            <tr>
+              <td>${index + 1}</td>
+              <td><strong>${escapeHtml(item.name || `Issue #${item.issue_number}`)}</strong></td>
+              <td>${escapeHtml(item.issue_number || "N/A")}</td>
+              <td>${escapeHtml(item.cover_date || "N/A")}</td>
+            </tr>
+          `;
+        });
+        html += "</table>";
+        document.getElementById("result").innerHTML = html;
+      }
+    } catch(err2) {
+      document.getElementById("result").innerHTML = `<div class="error">
+        ❌ Impossibile connettersi all'API.<br><br>
+        <strong>Soluzioni:</strong><br>
+        1. Apri questo file tramite un server web (es. con Live Server di VS Code)<br>
+        2. Usa un'estensione CORS nel browser (es. "CORS Unblock" per Chrome)<br>
+        3. Prova con un altro browser<br><br>
+        La tua API key è: <code>${API_KEY.substring(0,10)}...</code><br>
+        Verifica che sia valida su https://comicvine.gamespot.com/api/
+      </div>`;
+    }
   }
 }
 
-// Aggiungi supporto per tasto Enter
+// Funzione per prevenire attacchi XSS
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Supporto tasto Enter
 document.getElementById("search").addEventListener("keypress", function(e) {
   if (e.key === "Enter") {
     searchSeries();
   }
 });
+
+// Messaggio iniziale
+document.getElementById("result").innerHTML = `
+  <div class="info">
+    <h3>📖 Comic Tracker - Pronto all'uso!</h3>
+    <p>✅ API Key configurata: <code>${API_KEY.substring(0,15)}...</code></p>
+    <p>🔍 <strong>Prova a cercare:</strong></p>
+    <ul>
+      <li>Batman</li>
+      <li>Spider-Man</li>
+      <li>Superman</li>
+      <li>Watchmen</li>
+      <li>The Walking Dead</li>
+    </ul>
+    <p><small>⚠️ Nota: A causa delle politiche CORS del browser, potrebbe essere necessario usare un'estensione CORS o un server locale.</small></p>
+    <button onclick="searchSeries()" style="margin-top:10px;">🔍 Cerca "Batman"</button>
+    <script>document.getElementById("search").value = "Batman";</script>
+  </div>
+`;
 
 </script>
 
