@@ -9,6 +9,8 @@
     table { border-collapse: collapse; width:100%; margin-top:20px; }
     th, td { border:1px solid #444; padding:8px; }
     th { background:#222; }
+    .error { color: #ff6b6b; margin-top: 10px; }
+    .loading { color: #ffd93d; }
   </style>
 </head>
 <body>
@@ -22,35 +24,75 @@
 
 <script>
 
+// IMPORTANTE: Sostituisci con la tua API key valida di Comic Vine
+// Puoi ottenere una chiave gratis su: https://comicvine.gamespot.com/api/
 const API_KEY = "4426d00c9cc60d2ea63bd55c2dd0c614722927c9";
 
 async function searchSeries() {
-  const query = document.getElementById("search").value;
+  const query = document.getElementById("search").value.trim();
+  
+  if (!query) {
+    document.getElementById("result").innerHTML = '<div class="error">⚠️ Inserisci un titolo da cercare</div>';
+    return;
+  }
 
-  const url =
-    `https://comicvine.gamespot.com/api/issues/?api_key=${API_KEY}&format=json&filter=name:${query}`;
+  if (API_KEY === "4426d00c9cc60d2ea63bd55c2dd0c614722927c9") {
+    document.getElementById("result").innerHTML = '<div class="error">⚠️ Configura la tua API key di Comic Vine nel codice</div>';
+    return;
+  }
 
-  const res = await fetch(url);
-  const data = await res.json();
+  // Mostra loading
+  document.getElementById("result").innerHTML = '<div class="loading">🔄 Caricamento in corso...</div>';
 
-  const results = data.results;
+  try {
+    const url = `https://comicvine.gamespot.com/api/issues/?api_key=${API_KEY}&format=json&filter=name:${encodeURIComponent(query)}&limit=20`;
+    
+    const res = await fetch(url);
+    
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    
+    const data = await res.json();
 
-  let html = "<table>";
-  html += "<tr><th>Issue</th><th>Data</th></tr>";
-
-  results.forEach(item => {
-    html += `
-      <tr>
-        <td>${item.name || "Issue"}</td>
-        <td>${item.cover_date || "?"}</td>
-      </tr>
-    `;
-  });
-
-  html += "</table>";
-
-  document.getElementById("result").innerHTML = html;
+    if (data.error === "OK" && data.results && data.results.length > 0) {
+      const results = data.results;
+      
+      let html = "<h2>📖 Risultati trovati: " + results.length + "</h2>";
+      html += "<table>";
+      html += "<tr><th>Issue</th><th>Data di pubblicazione</th><th>Numero</th></tr>";
+      
+      results.forEach(item => {
+        const issueNumber = item.issue_number || "N/A";
+        const coverDate = item.cover_date || "Data non disponibile";
+        const name = item.name || `Issue #${issueNumber}`;
+        
+        html += `
+          <tr>
+            <td><strong>${name}</strong></td>
+            <td>${coverDate}</td>
+            <td>${issueNumber}</td>
+          </tr>
+        `;
+      });
+      
+      html += "</table>";
+      document.getElementById("result").innerHTML = html;
+    } else {
+      document.getElementById("result").innerHTML = `<div class="error">❌ Nessun risultato trovato per "${query}"</div>`;
+    }
+  } catch (error) {
+    console.error("Errore:", error);
+    document.getElementById("result").innerHTML = `<div class="error">❌ Errore: ${error.message}<br><br>⚠️ Potrebbe essere necessario un proxy CORS. Prova ad usare un'estensione CORS o un server proxy.</div>`;
+  }
 }
+
+// Aggiungi supporto per tasto Enter
+document.getElementById("search").addEventListener("keypress", function(e) {
+  if (e.key === "Enter") {
+    searchSeries();
+  }
+});
 
 </script>
 
