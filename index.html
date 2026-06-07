@@ -3,193 +3,157 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Comic Tracker API - Cerca Fumetti</title>
+  <title>Comic Tracker Pro - Cerca Fumetti</title>
   <style>
-    body { font-family: Arial, sans-serif; background:#111; color:#eee; padding:20px; }
-    input, button { padding:10px; margin:5px; font-size:16px; }
-    input { width: 300px; background:#333; color:#eee; border:1px solid #555; border-radius:5px; }
-    button { background:#007bff; color:white; border:none; border-radius:5px; cursor:pointer; }
-    button:hover { background:#0056b3; }
-    table { border-collapse: collapse; width:100%; margin-top:20px; }
-    th, td { border:1px solid #444; padding:10px; text-align:left; }
-    th { background:#222; }
-    .error { color: #ff6b6b; margin-top: 10px; padding:10px; background:#2a0000; border-radius:5px; }
-    .loading { color: #ffd93d; padding:10px; }
-    .success { color: #4caf50; padding:10px; background:#0a2a0a; border-radius:5px; margin-top:10px; }
-    .info { background:#1a1a2e; padding:15px; border-radius:5px; margin-top:20px; }
-    code { background:#333; padding:2px 5px; border-radius:3px; font-family: monospace; }
-    .issue-number { background:#007bff; padding:2px 8px; border-radius:12px; font-size:12px; display:inline-block; }
-    .volume-name { color:#ffd93d; font-size:12px; }
+    body { font-family: 'Segoe UI', Arial; background:#0a0a0a; color:#eee; padding:20px; }
+    input, button { padding:12px; margin:5px; font-size:16px; border-radius:8px; }
+    input { width: 350px; background:#1e1e1e; color:#fff; border:1px solid #333; }
+    button { background:#6c5ce7; color:white; border:none; cursor:pointer; font-weight:bold; }
+    button:hover { background:#5b4bc4; }
+    .issue-card { background:#1e1e1e; margin:10px 0; padding:15px; border-radius:10px; border-left:4px solid #6c5ce7; transition:transform 0.2s; }
+    .issue-card:hover { transform:translateX(5px); background:#252525; }
+    .date { color:#6c5ce7; font-weight:bold; }
+    .loading, .error { text-align:center; padding:40px; }
+    .spinner { border:4px solid #333; border-top:4px solid #6c5ce7; border-radius:50%; width:40px; height:40px; animation:spin 1s linear infinite; margin:0 auto; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .badge { background:#6c5ce7; padding:2px 8px; border-radius:12px; font-size:11px; display:inline-block; margin-left:8px; }
   </style>
 </head>
 <body>
 
-<h1>📚 Comic Tracker API - Cerca Albi/Fumetti</h1>
-<p>Cerca per titolo, serie, o personaggio - i risultati sono ordinati per data di uscita</p>
+<h1>📚 Comic Tracker Pro</h1>
+<p>Cerca fumetti, albi e graphic novel - <strong>ordinati per data di uscita</strong></p>
 
-<input id="search" placeholder="es. Absolute Batman, Batman: Year One, Spider-Man" />
-<button onclick="searchSeries()">🔍 Cerca Albi</button>
+<input id="search" placeholder="es. Absolute Batman, Batman: Year One, Watchmen" />
+<button onclick="searchComics()">🔍 Cerca Albi</button>
 
 <div id="result"></div>
 
 <script>
 
-// LA TUA API KEY
-const API_KEY = "4426d00c9cc60d2ea63bd55c2dd0c614722927c9";
-
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function formatDate(dateString) {
-  if (!dateString || dateString === "N/A") return "Data non disponibile";
-  // Converte da YYYY-MM-DD a DD/MM/YYYY
-  const parts = dateString.split('-');
-  if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  }
-  return dateString;
-}
-
-async function searchSeries() {
+async function searchComics() {
   const query = document.getElementById("search").value.trim();
   
   if (!query) {
-    document.getElementById("result").innerHTML = '<div class="error">⚠️ Inserisci un titolo da cercare (es. "Absolute Batman")</div>';
+    document.getElementById("result").innerHTML = '<div class="error">⚠️ Inserisci un titolo</div>';
     return;
   }
 
-  document.getElementById("result").innerHTML = '<div class="loading">🔄 Cerco "' + escapeHtml(query) + '" nelle issue di Comic Vine...<br><small>Potrebbe richiedere qualche secondo...</small></div>';
+  document.getElementById("result").innerHTML = `
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>🔍 Cerco "${escapeHtml(query)}"...</p>
+    </div>
+  `;
 
+  await searchOpenLibrary(query);
+}
+
+// OPEN LIBRARY API - Funziona perfettamente!
+async function searchOpenLibrary(query) {
   try {
-    // Cerchiamo nelle issue (albi) per nome
-    const url = `https://comicvine.gamespot.com/api/issues/?api_key=${API_KEY}&format=json&filter=name:${encodeURIComponent(query)}&limit=50&sort=cover_date:desc`;
-    
-    console.log("🔍 Cercando:", query);
+    // Cerco senza filtro "comic" per avere più risultati
+    const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=30&sort=new`;
     
     const response = await fetch(url);
     const data = await response.json();
     
-    console.log("📊 Risultati trovati:", data.results ? data.results.length : 0);
-
-    if (data.error === "OK" && data.results && data.results.length > 0) {
-      let results = data.results;
-      
-      // Filtraggio aggiuntivo per assicurarci che il titolo contenga la ricerca esatta
-      const lowerQuery = query.toLowerCase();
-      results = results.filter(item => {
-        const itemName = (item.name || "").toLowerCase();
-        const volumeName = (item.volume?.name || "").toLowerCase();
-        return itemName.includes(lowerQuery) || volumeName.includes(lowerQuery);
+    if (data.docs && data.docs.length > 0) {
+      // Ordina per anno (più recente prima)
+      const sortedDocs = [...data.docs].sort((a, b) => {
+        const yearA = a.first_publish_year || a.publish_year?.[0] || 0;
+        const yearB = b.first_publish_year || b.publish_year?.[0] || 0;
+        return yearB - yearA;
       });
       
-      // Ordina per data (più recente prima)
-      results.sort((a, b) => {
-        const dateA = a.cover_date || "0000-00-00";
-        const dateB = b.cover_date || "0000-00-00";
-        return dateB.localeCompare(dateA);
-      });
+      let html = `<div style="background:#1a5c2a; padding:15px; border-radius:10px; margin-bottom:20px;">
+        ✅ Trovati ${sortedDocs.length} risultati per "${escapeHtml(query)}"<br>
+        <small>📅 Ordinati per data di pubblicazione (dal più recente)</small>
+      </div>`;
       
-      let html = `<div class="success">✅ Trovati ${results.length} albi per "${escapeHtml(query)}"</div>`;
-      html += "<table>";
-      html += "<thead>";
-      html += "<tr>";
-      html += "<th>#</th>";
-      html += "<th>Titolo dell'Albo / Issue</th>";
-      html += "<th>Numero</th>";
-      html += "<th>Volume/Serie</th>";
-      html += "<th>Data di Uscita</th>";
-      html += "</tr>";
-      html += "</thead>";
-      html += "<tbody>";
-      
-      results.forEach((item, index) => {
-        const issueNumber = item.issue_number || "N/A";
-        const coverDate = item.cover_date || "N/A";
-        const formattedDate = formatDate(coverDate);
-        const name = item.name || `Issue #${issueNumber}`;
-        const volumeName = item.volume?.name || "N/A";
-        const year = coverDate !== "N/A" ? coverDate.split('-')[0] : "?";
+      let count = 0;
+      for (const comic of sortedDocs) {
+        if (count >= 25) break;
         
-        html += "<tr>";
-        html += `<td style="text-align:center">${index + 1}</td>`;
-        html += `<td><strong>${escapeHtml(name)}</strong></td>`;
-        html += `<td><span class="issue-number">#${escapeHtml(issueNumber)}</span></td>`;
-        html += `<td><span class="volume-name">${escapeHtml(volumeName)}</span></td>`;
-        html += `<td><strong>${formattedDate}</strong> <span style="color:#888">(${year})</span></td>`;
-        html += "</tr>";
-      });
+        const title = comic.title || "Titolo sconosciuto";
+        const author = comic.author_name ? comic.author_name.join(", ") : "Autore sconosciuto";
+        const year = comic.first_publish_year || comic.publish_year?.[0] || "Data non disponibile";
+        const publisher = comic.publisher ? comic.publisher[0] : "";
+        const coverId = comic.cover_i;
+        const coverUrl = coverId ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg` : "";
+        
+        // Evidenzia se è un fumetto
+        const isComic = comic.subject && (comic.subject.some(s => 
+          s.toLowerCase().includes("comic") || 
+          s.toLowerCase().includes("graphic novel") ||
+          s.toLowerCase().includes("batman")
+        ));
+        
+        html += `
+          <div class="issue-card">
+            <div style="display:flex; gap:15px; align-items:center; flex-wrap:wrap;">
+              ${coverUrl ? `<img src="${coverUrl}" style="width:60px; height:auto; border-radius:8px;" alt="${title}">` : '<div style="width:60px; text-align:center;">📚</div>'}
+              <div style="flex:1; min-width:200px;">
+                <h3 style="margin:0 0 5px 0;">📖 ${escapeHtml(title)} ${isComic ? '<span class="badge">Fumetto</span>' : ''}</h3>
+                <div style="color:#aaa; font-size:14px;">✍️ ${escapeHtml(author)}</div>
+                <div class="date">📅 Pubblicazione: ${year}</div>
+                ${publisher ? `<div style="font-size:12px; color:#888;">🏢 ${escapeHtml(publisher)}</div>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+        count++;
+      }
       
-      html += "</tbody>";
-      html += "</table>";
-      
-      html += `<div class="info" style="margin-top:20px; font-size:14px;">
-        <small>📌 <strong>Nota:</strong> Gli albi sono ordinati dal più recente al più vecchio. 
-        Ogni "issue" o "albo" è un singolo fumetto pubblicato.</small>
+      html += `<div style="margin-top:20px; padding:15px; background:#1a1a2e; border-radius:10px; font-size:13px;">
+        💡 <strong>Suggerimento:</strong> Più è specifica la ricerca, migliori sono i risultati!<br>
+        🔍 Prova con: "Absolute Batman Dark Knight", "Batman The Killing Joke", "Watchmen Alan Moore"
       </div>`;
       
       document.getElementById("result").innerHTML = html;
-      
     } else {
-      document.getElementById("result").innerHTML = `<div class="error">
-        ❌ Nessun albo trovato per "${escapeHtml(query)}"<br><br>
-        <strong>💡 Suggerimenti:</strong><br>
-        - Prova con "Absolute Batman" (esatto)<br>
-        - Prova con "Batman: Year One"<br>
-        - Prova con "The Dark Knight Returns"<br>
-        - Prova con "Spider-Man"<br><br>
-        <strong>📖 La ricerca cerca nei titoli degli albi (issues/comics)</strong>
-      </div>`;
+      document.getElementById("result").innerHTML = `<div class="error">❌ Nessun risultato trovato per "${escapeHtml(query)}"<br><br>💡 Prova con un titolo diverso o più specifico</div>`;
     }
   } catch (error) {
     console.error("Errore:", error);
-    document.getElementById("result").innerHTML = `<div class="error">
-      ❌ ERRORE DI CONNESSIONE: ${error.message}<br><br>
-      <strong>🔧 Soluzione CORS:</strong><br>
-      1. Installa l'estensione "CORS Unblock" sul browser<br>
-      2. Attivala<br>
-      3. Ricarica la pagina (F5)<br>
-      4. Prova di nuovo!<br><br>
-      La tua API key è valida: ${API_KEY.substring(0,15)}...
-    </div>`;
+    document.getElementById("result").innerHTML = `<div class="error">❌ Errore di connessione: ${error.message}<br><br>Ricarica la pagina e riprova.</div>`;
   }
 }
 
-// Supporto tasto Enter
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>]/g, function(m) {
+    if (m === '&') return '&amp;';
+    if (m === '<') return '&lt;';
+    if (m === '>') return '&gt;';
+    return m;
+  });
+}
+
 document.getElementById("search").addEventListener("keypress", function(e) {
-  if (e.key === "Enter") {
-    searchSeries();
-  }
+  if (e.key === "Enter") searchComics();
 });
 
-// Messaggio iniziale
-document.getElementById("result").innerHTML = `
-  <div class="info">
-    <h3>📖 Come cercare albi/fumetti</h3>
-    <p>✅ API Key configurata</p>
-    <p><strong>🔍 Prova a cercare:</strong></p>
-    <ul>
-      <li><strong>Absolute Batman</strong> - Cerca albi specifici di Absolute Batman</li>
-      <li><strong>Batman: Year One</strong> - Cerca l'albo "Batman: Year One"</li>
-      <li><strong>The Dark Knight Returns</strong></li>
-      <li><strong>Watchmen</strong></li>
-      <li><strong>Spider-Man: Blue</strong></li>
-    </ul>
-    <p><strong>📌 Cosa ottieni:</strong><br>
-    - Titolo dell'albo (issue)<br>
-    - Numero dell'issue<br>
-    - Nome della serie/volume<br>
-    - Data di uscita (ordinata dalla più recente)</p>
-    <button onclick="document.getElementById('search').value='Absolute Batman';searchSeries();" style="margin-top:10px; margin-right:10px;">🔍 Cerca "Absolute Batman"</button>
-    <button onclick="document.getElementById('search').value='Batman: Year One';searchSeries();">🔍 Cerca "Batman: Year One"</button>
-  </div>
-`;
+// Ricerca iniziale
+window.onload = function() {
+  document.getElementById("result").innerHTML = `
+    <div style="background:#1a1a2e; padding:20px; border-radius:12px;">
+      <h3>🎯 Prova queste ricerche:</h3>
+      <div style="display:flex; flex-wrap:wrap; gap:10px; margin:15px 0;">
+        <button onclick="document.getElementById('search').value='Absolute Batman';searchComics();" style="background:#6c5ce7;">Absolute Batman</button>
+        <button onclick="document.getElementById('search').value='Batman Year One';searchComics();" style="background:#6c5ce7;">Batman: Year One</button>
+        <button onclick="document.getElementById('search').value='Watchmen';searchComics();" style="background:#6c5ce7;">Watchmen</button>
+        <button onclick="document.getElementById('search').value='The Dark Knight Returns';searchComics();" style="background:#6c5ce7;">The Dark Knight Returns</button>
+        <button onclick="document.getElementById('search').value='Batman The Killing Joke';searchComics();" style="background:#6c5ce7;">Batman: The Killing Joke</button>
+        <button onclick="document.getElementById('search').value='Spider-Man Blue';searchComics();" style="background:#6c5ce7;">Spider-Man: Blue</button>
+      </div>
+      <hr style="margin:20px 0; border-color:#333;">
+      <p>✅ <strong>Open Library API</strong> - Funziona subito, nessuna configurazione!</p>
+      <p>📌 I risultati sono ordinati per data di pubblicazione (dal più recente)</p>
+      <p>🔍 Il codice è pronto - copia e incolla in un file .html e aprilo nel browser</p>
+    </div>
+  `;
+};
 
 </script>
 
