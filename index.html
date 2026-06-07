@@ -3,29 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Comic Tracker API</title>
+  <title>Comic Tracker API - Cerca Fumetti</title>
   <style>
     body { font-family: Arial, sans-serif; background:#111; color:#eee; padding:20px; }
     input, button { padding:10px; margin:5px; font-size:16px; }
+    input { width: 300px; background:#333; color:#eee; border:1px solid #555; border-radius:5px; }
     button { background:#007bff; color:white; border:none; border-radius:5px; cursor:pointer; }
     button:hover { background:#0056b3; }
     table { border-collapse: collapse; width:100%; margin-top:20px; }
-    th, td { border:1px solid #444; padding:8px; text-align:left; }
+    th, td { border:1px solid #444; padding:10px; text-align:left; }
     th { background:#222; }
     .error { color: #ff6b6b; margin-top: 10px; padding:10px; background:#2a0000; border-radius:5px; }
     .loading { color: #ffd93d; padding:10px; }
     .success { color: #4caf50; padding:10px; background:#0a2a0a; border-radius:5px; margin-top:10px; }
     .info { background:#1a1a2e; padding:15px; border-radius:5px; margin-top:20px; }
     code { background:#333; padding:2px 5px; border-radius:3px; font-family: monospace; }
+    .issue-number { background:#007bff; padding:2px 8px; border-radius:12px; font-size:12px; display:inline-block; }
+    .volume-name { color:#ffd93d; font-size:12px; }
   </style>
 </head>
 <body>
 
-<h1>📚 Comic Tracker API</h1>
-<p>Cerca albi a fumetti da Comic Vine</p>
+<h1>📚 Comic Tracker API - Cerca Albi/Fumetti</h1>
+<p>Cerca per titolo, serie, o personaggio - i risultati sono ordinati per data di uscita</p>
 
-<input id="search" placeholder="es. Batman, Spider-Man, Superman" />
-<button onclick="searchSeries()">🔍 Cerca</button>
+<input id="search" placeholder="es. Absolute Batman, Batman: Year One, Spider-Man" />
+<button onclick="searchSeries()">🔍 Cerca Albi</button>
 
 <div id="result"></div>
 
@@ -34,7 +37,6 @@
 // LA TUA API KEY
 const API_KEY = "4426d00c9cc60d2ea63bd55c2dd0c614722927c9";
 
-// Funzione per prevenire attacchi XSS
 function escapeHtml(str) {
   if (!str) return '';
   return String(str)
@@ -45,79 +47,116 @@ function escapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
-// Funzione principale di ricerca
+function formatDate(dateString) {
+  if (!dateString || dateString === "N/A") return "Data non disponibile";
+  // Converte da YYYY-MM-DD a DD/MM/YYYY
+  const parts = dateString.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateString;
+}
+
 async function searchSeries() {
   const query = document.getElementById("search").value.trim();
   
   if (!query) {
-    document.getElementById("result").innerHTML = '<div class="error">⚠️ Inserisci un titolo da cercare</div>';
+    document.getElementById("result").innerHTML = '<div class="error">⚠️ Inserisci un titolo da cercare (es. "Absolute Batman")</div>';
     return;
   }
 
-  // Mostra loading
-  document.getElementById("result").innerHTML = '<div class="loading">🔄 Caricamento in corso...<br><small>Cerco: "' + escapeHtml(query) + '"</small></div>';
+  document.getElementById("result").innerHTML = '<div class="loading">🔄 Cerco "' + escapeHtml(query) + '" nelle issue di Comic Vine...<br><small>Potrebbe richiedere qualche secondo...</small></div>';
 
   try {
-    // Chiamata diretta all'API (senza proxy per vedere l'errore CORS)
-    const url = `https://comicvine.gamespot.com/api/issues/?api_key=${API_KEY}&format=json&filter=name:${encodeURIComponent(query)}&limit=20`;
+    // Cerchiamo nelle issue (albi) per nome
+    const url = `https://comicvine.gamespot.com/api/issues/?api_key=${API_KEY}&format=json&filter=name:${encodeURIComponent(query)}&limit=50&sort=cover_date:desc`;
     
-    console.log("Chiamata API a:", url);
+    console.log("🔍 Cercando:", query);
     
     const response = await fetch(url);
     const data = await response.json();
     
-    console.log("Risposta ricevuta:", data);
+    console.log("📊 Risultati trovati:", data.results ? data.results.length : 0);
 
     if (data.error === "OK" && data.results && data.results.length > 0) {
-      const results = data.results;
+      let results = data.results;
       
-      let html = `<div class="success">✅ Trovati ${results.length} risultati per "${escapeHtml(query)}"</div>`;
-      html += "<table border='1'>";
-      html += "<tr><th>#</th><th>Titolo dell'Albo</th><th>Numero</th><th>Data Pubblicazione</th></tr>";
+      // Filtraggio aggiuntivo per assicurarci che il titolo contenga la ricerca esatta
+      const lowerQuery = query.toLowerCase();
+      results = results.filter(item => {
+        const itemName = (item.name || "").toLowerCase();
+        const volumeName = (item.volume?.name || "").toLowerCase();
+        return itemName.includes(lowerQuery) || volumeName.includes(lowerQuery);
+      });
+      
+      // Ordina per data (più recente prima)
+      results.sort((a, b) => {
+        const dateA = a.cover_date || "0000-00-00";
+        const dateB = b.cover_date || "0000-00-00";
+        return dateB.localeCompare(dateA);
+      });
+      
+      let html = `<div class="success">✅ Trovati ${results.length} albi per "${escapeHtml(query)}"</div>`;
+      html += "<table>";
+      html += "<thead>";
+      html += "<tr>";
+      html += "<th>#</th>";
+      html += "<th>Titolo dell'Albo / Issue</th>";
+      html += "<th>Numero</th>";
+      html += "<th>Volume/Serie</th>";
+      html += "<th>Data di Uscita</th>";
+      html += "</tr>";
+      html += "</thead>";
+      html += "<tbody>";
       
       results.forEach((item, index) => {
         const issueNumber = item.issue_number || "N/A";
-        const coverDate = item.cover_date || "Non disponibile";
+        const coverDate = item.cover_date || "N/A";
+        const formattedDate = formatDate(coverDate);
         const name = item.name || `Issue #${issueNumber}`;
+        const volumeName = item.volume?.name || "N/A";
+        const year = coverDate !== "N/A" ? coverDate.split('-')[0] : "?";
         
         html += "<tr>";
-        html += "<td>" + (index + 1) + "</td>";
-        html += "<td><strong>" + escapeHtml(name) + "</strong></td>";
-        html += "<td>" + escapeHtml(issueNumber) + "</td>";
-        html += "<td>" + escapeHtml(coverDate) + "</td>";
+        html += `<td style="text-align:center">${index + 1}</td>`;
+        html += `<td><strong>${escapeHtml(name)}</strong></td>`;
+        html += `<td><span class="issue-number">#${escapeHtml(issueNumber)}</span></td>`;
+        html += `<td><span class="volume-name">${escapeHtml(volumeName)}</span></td>`;
+        html += `<td><strong>${formattedDate}</strong> <span style="color:#888">(${year})</span></td>`;
         html += "</tr>";
       });
       
+      html += "</tbody>";
       html += "</table>";
+      
+      html += `<div class="info" style="margin-top:20px; font-size:14px;">
+        <small>📌 <strong>Nota:</strong> Gli albi sono ordinati dal più recente al più vecchio. 
+        Ogni "issue" o "albo" è un singolo fumetto pubblicato.</small>
+      </div>`;
+      
       document.getElementById("result").innerHTML = html;
+      
     } else {
       document.getElementById("result").innerHTML = `<div class="error">
-        ❌ Nessun risultato trovato per "${escapeHtml(query)}"<br><br>
-        <strong>⚠️ Errore CORS rilevato!</strong><br><br>
-        <strong>Soluzioni per far funzionare la ricerca:</strong><br><br>
-        1. <strong>Usa un'estensione CORS</strong> (più facile):<br>
-        - Installa "CORS Unblock" o "Allow CORS" per Chrome/Edge<br>
-        - Attivala e ricarica la pagina<br><br>
-        2. <strong>Usa Live Server</strong> (consigliato):<br>
-        - Installa VS Code e l'estensione "Live Server"<br>
-        - Fai click destro sul file → "Open with Live Server"<br><br>
-        3. <strong>Prova su un server online</strong>:<br>
-        - Copia questo codice su https://codepen.io/pen/<br><br>
-        4. <strong>Usa un proxy CORS</strong> (alternativa):<br>
-        - Modifica il codice per usare https://cors-anywhere.herokuapp.com/
+        ❌ Nessun albo trovato per "${escapeHtml(query)}"<br><br>
+        <strong>💡 Suggerimenti:</strong><br>
+        - Prova con "Absolute Batman" (esatto)<br>
+        - Prova con "Batman: Year One"<br>
+        - Prova con "The Dark Knight Returns"<br>
+        - Prova con "Spider-Man"<br><br>
+        <strong>📖 La ricerca cerca nei titoli degli albi (issues/comics)</strong>
       </div>`;
     }
   } catch (error) {
-    console.error("Errore dettagliato:", error);
+    console.error("Errore:", error);
     document.getElementById("result").innerHTML = `<div class="error">
-      ❌ ERRORE: ${error.message}<br><br>
-      <strong>Questo è un problema di CORS (Cross-Origin Resource Sharing)</strong><br><br>
-      <strong>🔧 SOLUZIONE RAPIDA:</strong><br>
-      1. Installa l'estensione "CORS Unblock" sul tuo browser<br>
-      2. Attivala (clicca sull'icona dell'estensione)<br>
-      3. Ricarica questa pagina (F5)<br>
-      4. Cerca di nuovo! 🚀<br><br>
-      <strong>📖 La tua API key è valida:</strong> ${API_KEY.substring(0,15)}...
+      ❌ ERRORE DI CONNESSIONE: ${error.message}<br><br>
+      <strong>🔧 Soluzione CORS:</strong><br>
+      1. Installa l'estensione "CORS Unblock" sul browser<br>
+      2. Attivala<br>
+      3. Ricarica la pagina (F5)<br>
+      4. Prova di nuovo!<br><br>
+      La tua API key è valida: ${API_KEY.substring(0,15)}...
     </div>`;
   }
 }
@@ -130,26 +169,27 @@ document.getElementById("search").addEventListener("keypress", function(e) {
 });
 
 // Messaggio iniziale
-const resultDiv = document.getElementById("result");
-resultDiv.innerHTML = `
+document.getElementById("result").innerHTML = `
   <div class="info">
-    <h3>📖 Comic Tracker - Pronto all'uso!</h3>
-    <p>✅ API Key configurata: <code>${API_KEY.substring(0,15)}...</code></p>
-    <p>⚠️ <strong>IMPORTANTE:</strong> Per fare funzionare la ricerca devi risolvere il problema CORS:</p>
-    <ol>
-      <li><strong>Installa l'estensione "CORS Unblock"</strong> per Chrome/Edge</li>
-      <li><strong>Attivala</strong> (clicca sull'icona dell'estensione)</li>
-      <li><strong>Ricarica la pagina</strong> (F5)</li>
-      <li><strong>Cerca "Batman"</strong> - Funzionerà! ✅</li>
-    </ol>
-    <p>🔍 <strong>Esempi da provare:</strong> Batman, Spider-Man, Superman, Watchmen</p>
-    <button onclick="document.getElementById('search').value='Batman';searchSeries();" style="margin-top:10px;">🔍 Prova a cercare "Batman"</button>
+    <h3>📖 Come cercare albi/fumetti</h3>
+    <p>✅ API Key configurata</p>
+    <p><strong>🔍 Prova a cercare:</strong></p>
+    <ul>
+      <li><strong>Absolute Batman</strong> - Cerca albi specifici di Absolute Batman</li>
+      <li><strong>Batman: Year One</strong> - Cerca l'albo "Batman: Year One"</li>
+      <li><strong>The Dark Knight Returns</strong></li>
+      <li><strong>Watchmen</strong></li>
+      <li><strong>Spider-Man: Blue</strong></li>
+    </ul>
+    <p><strong>📌 Cosa ottieni:</strong><br>
+    - Titolo dell'albo (issue)<br>
+    - Numero dell'issue<br>
+    - Nome della serie/volume<br>
+    - Data di uscita (ordinata dalla più recente)</p>
+    <button onclick="document.getElementById('search').value='Absolute Batman';searchSeries();" style="margin-top:10px; margin-right:10px;">🔍 Cerca "Absolute Batman"</button>
+    <button onclick="document.getElementById('search').value='Batman: Year One';searchSeries();">🔍 Cerca "Batman: Year One"</button>
   </div>
 `;
-
-// Debug: verifica che la funzione sia definita
-console.log("Script caricato, searchSeries è:", typeof searchSeries);
-console.log("API Key:", API_KEY.substring(0,15) + "...");
 
 </script>
 
