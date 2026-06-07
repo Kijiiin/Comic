@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Comic Tracker API</title>
+  <style>
+    body { font-family: Arial; background:#111; color:#eee; padding:20px; }
+    input, button { padding:10px; margin:5px; }
+    table { border-collapse: collapse; width:100%; margin-top:20px; }
+    th, td { border:1px solid #444; padding:8px; }
+    th { background:#222; }
+  </style>
+</head>
+<body>
+
+<h1>📚 Comic Tracker API</h1>
+
+<input id="search" placeholder="es. Batman" />
+<button onclick="searchSeries()">Cerca</button>
+
+<div id="result"></div>
+
+<script>
+
+const API_KEY = "4426d00c9cc60d2ea63bd55c2dd0c614722927c9";
+
+async function searchSeries() {
+  const query = document.getElementById("search").value;
+
+  const url =
+    `https://comicvine.gamespot.com/api/issues/?api_key=${API_KEY}&format=json&filter=name:${query}`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+
+  const results = data.results;
+
+  let html = "<table>";
+  html += "<tr><th>Issue</th><th>Data</th></tr>";
+
+  results.forEach(item => {
+    html += `
+      <tr>
+        <td>${item.name || "Issue"}</td>
+        <td>${item.cover_date || "?"}</td>
+      </tr>
+    `;
+  });
+
+  html += "</table>";
+
+  document.getElementById("result").innerHTML = html;
+}
+
+</script>
+
+</body>
+</html>
